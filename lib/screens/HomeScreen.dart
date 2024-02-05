@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:global_news_app/screens/Bookmark.dart';
 import 'package:global_news_app/screens/DetailedNews.dart';
 import 'package:global_news_app/screens/SearchNewsScreen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/AppConfig.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,11 +22,18 @@ class _HomeScreenState extends State<HomeScreen> {
   String selectedSortOption = 'publishedAt';
   String _tempSortOption = 'publishedAt';
   String selectedCategory = 'business';
+  List<String> existingBookmarks = [];
 
   @override
   void initState() {
     super.initState();
-    loadData(selectedCategory, selectedSortOption);
+    initData();
+  }
+
+  Future<void> initData() async {
+    await loadData(selectedCategory, selectedSortOption);
+    final pref = await SharedPreferences.getInstance();
+    existingBookmarks = pref.getStringList('bookmarks') ?? [];
   }
 
   Future<void> loadData(String category, String sortBy) async {
@@ -167,12 +176,35 @@ class _HomeScreenState extends State<HomeScreen> {
           : ListView.builder(
               itemCount: dataList.length,
               itemBuilder: (context, index) {
+                bool isBookmarked =
+                    existingBookmarks.contains(jsonEncode(dataList[index]));
+
                 return ListTile(
                   leading: CircleAvatar(
                     backgroundImage: NetworkImage(dataList[index]['image']!),
                   ),
                   title: Text(dataList[index]['title']!),
                   subtitle: Text(dataList[index]['subtitle']!),
+                  trailing: IconButton(
+                    icon: Icon(
+                      isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                      color: isBookmarked ? Colors.blue : null,
+                    ),
+                    onPressed: () async {
+                      final pref = await SharedPreferences.getInstance();
+                      String jsonBookmark = jsonEncode(dataList[index]);
+
+                      setState(() {
+                        if (existingBookmarks.contains(jsonBookmark)) {
+                          existingBookmarks.remove(jsonBookmark);
+                        } else {
+                          existingBookmarks.add(jsonBookmark);
+                        }
+                      });
+
+                      pref.setStringList('bookmarks', existingBookmarks);
+                    },
+                  ),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -192,6 +224,21 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          FloatingActionButton(
+            onPressed: () => {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const Bookmark()),
+              )
+            },
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20.0),
+            ),
+            heroTag: 'bookmark',
+            child: const Icon(Icons.bookmark_add, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
           FloatingActionButton(
             onPressed: sort,
             backgroundColor: Theme.of(context).colorScheme.primary,
